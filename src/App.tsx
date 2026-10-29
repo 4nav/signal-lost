@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { transmissions } from "./data/transmissions";
 import { getSignalStrength, isSignalLocked } from "./utils/signal";
+import Knob from "./components/knob";
 
 export default function App() {
   const [frequency, setFrequency] = useState(8000);
@@ -15,15 +16,7 @@ export default function App() {
       <h1>SIGNAL LOST</h1>
       <p>Hint: {transmission.hint}</p>
 
-      <input 
-        type="range"
-        min={4000}
-        max={12000}
-        step={10}
-        value={frequency}
-        onChange={(e)=> setFrequency(Number(e.target.value))}
-        style={{width: "100%"}}
-      />
+      <Knob frequency={frequency} onChange={setFrequency} />
 
       <p>{frequency.toLocaleString()} kHz</p>
       <p>Signal: {strength}%</p>
