@@ -4,6 +4,7 @@ const MIN = 4000;
 const MAX = 12000;
 const TURNS = 3;
 const KHZ_PER_DEG = (MAX - MIN) / (360 * TURNS);
+const MAX_KHZ_PER_SEC = 600;
 
 type KnobProps = {
     frequency: number;
@@ -15,6 +16,7 @@ const clamp = (v:number) => Math.min(MAX, Math.max(MIN, v));
 export default function Dial({frequency, onChange}: KnobProps){
     const knobRef = useRef<HTMLDivElement>(null);
     const lastAngle = useRef(0);
+    const lastTime = useRef(0);
     const freqRef = useRef(frequency);
     freqRef.current = frequency;
 
@@ -28,6 +30,7 @@ export default function Dial({frequency, onChange}: KnobProps){
     function onPointerDown(e: React.PointerEvent){
         e.currentTarget.setPointerCapture(e.pointerId);
         lastAngle.current = pointerAngle(e);
+        lastTime.current = e.timeStamp;
     }
 
     function onPointerMove(e: React.PointerEvent){
@@ -39,7 +42,11 @@ export default function Dial({frequency, onChange}: KnobProps){
         if (delta < -180) delta += 360;
         lastAngle.current = angle;
 
-        const nxt = clamp(Math.round(freqRef.current + delta * KHZ_PER_DEG));
+        const dt = Math.max(1, e.timeStamp - lastTime.current)/1000;
+        lastTime.current = e.timeStamp;
+        const maxStep = MAX_KHZ_PER_SEC * dt;
+        const step = Math.max(-maxStep, Math.min(maxStep, delta * KHZ_PER_DEG));
+        const nxt = clamp(Math.round(freqRef.current + step));
         freqRef.current = nxt;
         onChange(nxt);
     }
