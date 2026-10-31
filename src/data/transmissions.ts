@@ -6,7 +6,7 @@ export type Transmission = {
     drift: number;
 }
 
-export const BOOT_CLUE = "UNIDENTIFIED CARRIER. LOW CHANNELS. BELOW CH 450.";
+export const BOOT_CLUE = "UNIDENTIFIED CARRIER. CH 417.";
 
 export const transmissions: Transmission[] = [
     {

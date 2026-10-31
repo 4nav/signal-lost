@@ -1,3 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+body{
+  margin: 0;
+  background: #08060d;
+}
+.hit, .key{
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hit:disabled, .key:disabled{
+  cursor: default; 
+}
+
+.key:active:not(:disabled){
+  background: rgba(0, 0, 0, 0.3);
+}
+
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
