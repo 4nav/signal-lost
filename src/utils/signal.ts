@@ -1,6 +1,6 @@
 export const LOCK_WINDOW = 20;
-const RANGE = 120;
-const SPAN = 100; 
+export const RANGE = 120;
+export const SPAN = 100; 
 
 export function getSignalStrength(frequency: number, target: number): number{
     const diff = Math.abs(frequency - target);
@@ -20,7 +20,7 @@ export function isSignalLocked(frequency: number, target: number): boolean{
     return Math.abs(frequency - target) <= LOCK_WINDOW;
 }
 
-export function lightCount(distance: number, locked: boolean): number{
+export function litCount(distance: number, locked: boolean): number{
     if(locked)return 5;
     if(distance > RANGE)return 0;
     const t= (RANGE - distance) / (RANGE - LOCK_WINDOW);
