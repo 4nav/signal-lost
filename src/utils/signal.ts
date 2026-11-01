@@ -1,6 +1,6 @@
 export const LOCK_WINDOW = 20;
 export const RANGE = 120;
-export const SPAN = 100; 
+export const SPAN = 400;
 
 export function getSignalStrength(frequency: number, target: number): number{
     const diff = Math.abs(frequency - target);

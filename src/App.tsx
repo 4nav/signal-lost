@@ -13,13 +13,12 @@ import RefPanel from "./components/RefPanel";
 const RETUNE_MS = 1500;
 const WARMUP_MS = 800;
 const DEG_PER_ROW = 24; 
-const DIAL_DEG = 135;   
+const DIAL_DEG = 270;   
 const KEYS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "CLR", "9", "ENT"];
 
-const allFreqs = [
-  ...transmissions.map((t) => t.frequency),
-  ...ambient.map((a) => a.frequency),
-];
+const STORY_REACH = 100;
+const storyFreqs = transmissions.map((t) => t.frequency);
+const ambientFreqs = ambient.map((a) => a.frequency);
 
 const abs = (b: Box): CSSProperties => ({
   position: "absolute",
@@ -66,6 +65,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [solved, setSolved] = useState(false);
   const [seed, setSeed] = useState(0);
+  const [spin, setSpin] = useState(0);
 
   const retuneTimer = useRef<number | undefined>(undefined);
   const warmTimer = useRef<number | undefined>(undefined);
@@ -75,15 +75,16 @@ export default function App() {
   const isLast = curIdx === transmissions.length - 1;
 
   const frequency = channel === null || retuning ? null : channel * 10 + offset;
+  const visible = channel === null ? [] : [...storyFreqs.filter((f) => Math.abs(f - channel * 10) <= STORY_REACH), ...ambientFreqs]
   const live = on && frequency !== null;
-  const strength = live ? getStrengthNearest(frequency, allFreqs) : 0;
-  const tunedFreq = live ? allFreqs.find((f) => isSignalLocked(frequency, f)) ?? null : null;
-  const lit = live ? litCount(getNearestDistance(frequency, allFreqs), tunedFreq !== null) : 0;
+  const strength = live ? getStrengthNearest(frequency, visible) : 0;
+  const tunedFreq = live ? visible.find((f) => isSignalLocked(frequency, f)) ?? null : null;
+  const lit = live ? litCount(getNearestDistance(frequency, visible), tunedFreq !== null) : 0;
   const onCurrent = tunedFreq !== null && tunedFreq === transmission.frequency;
   const ambientHere = tunedFreq !== null ? ambient.find((a) => a.frequency === tunedFreq) : undefined;
 
 
-  const nearest = live ? allFreqs.reduce((b, f) => (Math.abs(f - frequency) < Math.abs(b - frequency) ? f : b)) : null;
+  const nearest = live ? visible.reduce((b, f) => (Math.abs(f - frequency) < Math.abs(b - frequency) ? f : b)) : null;
   const err = live && nearest !== null ? nearest - frequency : null;
   const needle = err === null || Math.abs(err) > RANGE ? -75 : (err / RANGE) * 60;
 
@@ -180,6 +181,7 @@ export default function App() {
     setChannel(n);
     setOffset(randomOffset());
     setRetuning(true);
+
     window.clearTimeout(retuneTimer.current);
     retuneTimer.current = window.setTimeout(() => setRetuning(false), RETUNE_MS);
   }
@@ -217,6 +219,8 @@ export default function App() {
     setAns("");
     setError("");
     setSolved(false);
+    setChannel(null);
+    setOffset(0);
   }
 
   function ok() {
@@ -257,15 +261,17 @@ export default function App() {
       if (e.key === "ArrowUp") {
         e.preventDefault();
         lcd.scrollBy(-1);
+        setSpin((s) => s - DEG_PER_ROW);
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         lcd.scrollBy(1);
+        setSpin((s) => s + DEG_PER_ROW);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
-        setOffset((o) => clampOff(o - 5));
+        setOffset((o) => clampOff(o - (e.shiftKey ? 50 : 5)));
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        setOffset((o) => clampOff(o + 5));
+        setOffset((o) => clampOff(o + (e.shiftKey ? 50 : 5)));
       } else if (/^[0-9]$/.test(e.key)) digit(e.key);
       else if (/^[a-zA-Z]$/.test(e.key)) letter(e.key);
       else if (e.key === "Backspace") backspace();
@@ -336,7 +342,7 @@ export default function App() {
               style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none" }}
             >
               <g transform={`rotate(${needle} ${HUB.x} ${HUB.y})`}>
-                <line x1={HUB.x} y1={HUB.y} x2={HUB.x} y2={HUB.y - 46} stroke="#0b2a12" strokeWidth={2} />
+                <line x1={HUB.x} y1={HUB.y} x2={HUB.x} y2={HUB.y - 38} stroke="#0b2a12" strokeWidth={2} />
               </g>
               <text
                 x={HUB.x}
@@ -381,6 +387,7 @@ export default function App() {
             max={lcd.maxScroll}
             perDeg={1 / DEG_PER_ROW}
             onChange={lcd.scrollTo}
+            onTurn={(d) => setSpin((s) => s + d)}
             label="Scroll display"
             disabled={!on}
           >
@@ -395,7 +402,7 @@ export default function App() {
                   style={{
                     display: "block",
                     imageRendering: "pixelated",
-                    transform: `rotate(${Math.round(deg / 15) * 15}deg)`,
+                    transform: `rotate(${Math.round(spin / 15) * 15}deg)`,
                   }}
                 />
               ) : null

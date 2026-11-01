@@ -61,7 +61,7 @@ export const transmissions: Transmission[] = [
         id: 7,
         frequency: 8820,
         keyword: "VOICE",
-        message: "I played the tape. It's a man's voice, reading the logbook aloud, a few seconds ahead of where I am in the pages. It took me until the last reel to recognize him. It's me. Same cough, same humming under his breath when nobody's listening. Who is sending it? Who is listening? I keep asking the room the same question, and I keep lifting the telephone by the door to spell it out on the buttons.",
+        message: "I played the tape. It's a man's voice, reading the logbook aloud, a few seconds ahead of where I am in the pages. It took me until the last reel to recognize him. It's me. Same cough, same humming under his breath. Who is sending it? Who is listening? I keep asking the room the same question, and I keep lifting the telephone by the door to spell it out on the buttons.",
         drift: 16,
     },
 

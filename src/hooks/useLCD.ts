@@ -38,7 +38,7 @@ export function useLCD(doc: LCDDoc, strength: number){
             const now = performance.now();
             const dt = (now - last)/100;
             last = now;
-            const rate = doc.signal ? 40 * Math.min(1, strengthRef.current / 85) : 40; //chars/sec
+            const rate = doc.signal ? 4 * Math.min(1, strengthRef.current / 85) : 4; //chars/sec
             acc += rate * dt;
             const n = Math.floor(acc);
             if( n < 1)return;
