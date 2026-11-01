@@ -1,4 +1,4 @@
-import { use, useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { wrap } from "../utils/text";
 
 export const COLS = 30;
@@ -60,6 +60,7 @@ export function useLCD(doc: LCDDoc, strength: number){
 
     return{
         rows: all.slice(row0, row0 + ROWS),
+        done,
         pos, maxScroll, scrollTo: (v: number)=>{
             setFollow(v >= maxScroll);
             setScroll(v);

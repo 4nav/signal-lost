@@ -131,3 +131,5 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+@keyframes endFade {from {opacity: 0;} to {opacity: 1;}}

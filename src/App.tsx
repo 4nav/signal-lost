@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent,} from "react";
 import { transmissions, BOOT_CLUE } from "./data/transmissions";
 import { ambient } from "./data/stations";
-import { getStrengthNearest, getNearestDistance, isSignalLocked, litCount, RANGE, SPAN, } from "./utils/signal";
+import { getStrengthNearest, getNearestDistance, isSignalLocked, litCount, driftOffset, LOCK_RELEASE, RANGE, SPAN } from "./utils/signal";
 import { encodeMorse } from "./utils/morse";
 import { garble } from "./utils/text";
 import { useLCD, type LCDDoc } from "./hooks/useLCD";
@@ -9,6 +9,7 @@ import { BOX, FRAME, FRAMES, SPRITES, HUB, DIAL_CENTER, REF_OPEN_AT, type Box } 
 import Rotary from "./components/rotary";
 import {Scope} from "./components/scope";
 import RefPanel from "./components/RefPanel";
+import { hints } from "./data/hints";
 
 const RETUNE_MS = 1500;
 const WARMUP_MS = 800;
@@ -17,8 +18,11 @@ const DIAL_DEG = 270;
 const KEYS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "CLR", "9", "ENT"];
 
 const STORY_REACH = 100;
-const storyFreqs = transmissions.map((t) => t.frequency);
-const ambientFreqs = ambient.map((a) => a.frequency);
+const LOCKOUT_MS = 6000;
+const MIN_VERIFY = 70;
+const WAIT_MS = 15000;
+
+type Station = { base: number; freq: number };
 
 const abs = (b: Box): CSSProperties => ({
   position: "absolute",
@@ -31,7 +35,7 @@ const noFocus = (e: ReactMouseEvent) => e.preventDefault();
 const clampOff = (v: number) => Math.min(SPAN, Math.max(-SPAN, v));
 
 const randomOffset = () => (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 50);
-
+const randomBias = () => (Math.random() * 2 - 1)* 280;
 function useStageScale() {
   const [s, setS] = useState(1);
   useEffect(() => {
@@ -44,6 +48,11 @@ function useStageScale() {
     return () => window.removeEventListener("resize", calc);
   }, []);
   return s;
+}
+
+const mmss = (ms: number) => {
+  const s= Math.floor(ms / 1000);
+  return `${String(Math.floor(s/60)).padStart(2, "0")}: ${String(s%60).padStart(2, "0")}`;
 }
 
 export default function App() {
@@ -66,26 +75,56 @@ export default function App() {
   const [solved, setSolved] = useState(false);
   const [seed, setSeed] = useState(0);
   const [spin, setSpin] = useState(0);
+  const [bias, setBias] = useState(0);
+
+  const [lockout, setLockout] = useState(false);
+  const [strikes, setStrikes] = useState(0);
+  const lockTimer = useRef<number | undefined>(undefined);
+
+    const [clock, setClock] = useState(0);
+    const [drift0, setDrift0] = useState(0);
+    const [phase, setPhase] = useState(0);
+    const [held, setHeld] = useState<number | null>(null);
+
+    const [hintLevel, setHintLevel] = useState(0);
+    const [hintsUsed, setHintsUsed] = useState(0);
 
   const retuneTimer = useRef<number | undefined>(undefined);
   const warmTimer = useRef<number | undefined>(undefined);
 
+  const [endPhase, setEndPhase] = useState<null | "wait" | "replay" | "card" | "off">(null);
+  const [startedAt,setStartedAt] = useState<number | null>(null);
+  const [playMs, setPlayMs] = useState(0);
+
   const on = power === "on";
   const transmission = transmissions[curIdx];
   const isLast = curIdx === transmissions.length - 1;
+  const finale = solved && isLast;
+  const shownHints = hints[transmission.id].slice(0, hintLevel);
 
-  const frequency = channel === null || retuning ? null : channel * 10 + offset;
-  const visible = channel === null ? [] : [...storyFreqs.filter((f) => Math.abs(f - channel * 10) <= STORY_REACH), ...ambientFreqs]
+  const frequency = channel === null || retuning ? null : channel * 10 + offset + bias;
+  const driftNow = driftOffset(transmission.drift, (clock - drift0) / 1000, phase);
+  const visible: Station[] = channel === null ? [] : [...transmissions.filter((t) => Math.abs(t.frequency - channel * 10) <= STORY_REACH).map((t) => ({ 
+    base: t.frequency,
+    freq: t.id === transmission.id ? t.frequency + driftNow : t.frequency,
+  })), ...ambient.map((a) => ({ base: a.frequency, freq: a.frequency })),];
+  const freqs = visible.map((v) => v.freq);
+
   const live = on && frequency !== null;
-  const strength = live ? getStrengthNearest(frequency, visible) : 0;
-  const tunedFreq = live ? visible.find((f) => isSignalLocked(frequency, f)) ?? null : null;
-  const lit = live ? litCount(getNearestDistance(frequency, visible), tunedFreq !== null) : 0;
-  const onCurrent = tunedFreq !== null && tunedFreq === transmission.frequency;
-  const ambientHere = tunedFreq !== null ? ambient.find((a) => a.frequency === tunedFreq) : undefined;
+  const strength = live ? getStrengthNearest(frequency, freqs) : 0;
+  
+  const hit = live? visible.find((v) => isSignalLocked(frequency, v.freq)): undefined;
+  const stuck = live && held !== null?visible.find((v)=> v.base === held && Math.abs(frequency - v.freq) <= LOCK_RELEASE):undefined;
+  const tunedBase = (stuck ?? hit)?.base ?? null;
+
+  const lit = live ? litCount(getNearestDistance(frequency, freqs), tunedBase !== null) : 0;
+  const litShown = finale ? 5 : lit;
+  const onCurrent = tunedBase !== null && tunedBase === transmission.frequency;
+  const ambientHere = tunedBase !== null ? ambient.find((a) => a.frequency === tunedBase) : undefined;
 
 
-  const nearest = live ? visible.reduce((b, f) => (Math.abs(f - frequency) < Math.abs(b - frequency) ? f : b)) : null;
-  const err = live && nearest !== null ? nearest - frequency : null;
+  const nearest = live ? visible.reduce((b, f) => (Math.abs(f.freq - frequency) < Math.abs(b.freq - frequency) ? f : b)) : null;
+  const err = live && nearest !== null ? nearest.freq - frequency : null;
   const needle = err === null || Math.abs(err) > RANGE ? -75 : (err / RANGE) * 60;
 
   let doc: LCDDoc;
@@ -99,26 +138,53 @@ export default function App() {
     doc = { key: `log-${upto}`, body: text, instant: true };
   } 
 
+  else if(lockout) {
+    doc = {
+      key: `lockout-${strikes}`,
+      body: "INTRUDER DETECTED.\nCHANNEL CLOSED.\nTRANSMISSION FAILED.",
+      instant: true,
+    };
+  }
+
   else if (retuning) {
-    doc = { key: "retune", body: "RETUNING...", instant: true };
+    doc = { 
+      key: "retune", 
+      body: "RETUNING...", 
+      instant: true 
+    };
   } 
+  
+  else if(endPhase === "replay" || endPhase === "card"){
+    doc = {
+      key: "loop-1",
+      body: transmissions[0].message
+    }
+  }
   
   else if (entry || notice) {
-    doc = { key: "entry", body: notice || `CH ${entry}_`, instant: true };
-  } 
-
-  else if (channel === null) {
-    doc = { key: curIdx === 0 ? "boot" : `idle-${curIdx}`, body: curIdx === 0 ? BOOT_CLUE : "ENTER CHANNEL" };
+    doc = { 
+      key: "entry", 
+      body: notice || `CH ${entry}_`, 
+      instant: true 
+    };
   } 
   
-  else if (onCurrent && solved) {
-    doc = {
+  else if(solved){
+    doc ={
       key: `msg-${transmission.id}`,
       body: transmission.message,
-      live: isLast ? "[ENT] RESTART" : "[ENT] NEXT",
-      signal: true,
+      live: isLast? undefined : "[ENT] NEXT",
+    }
+  }
+
+  else if (channel === null) {
+    doc = { 
+      key: curIdx === 0 ? "boot" : `idle-${curIdx}`, 
+      body: curIdx === 0 ? BOOT_CLUE : "ENTER CHANNEL" 
     };
-  } else if (onCurrent) {
+  } 
+  
+   else if (onCurrent) {
     doc = {
       key: `id-${transmission.id}`,
       body: "STATION ID RECEIVED. ACKNOWLEDGE.",
@@ -133,8 +199,8 @@ export default function App() {
     };
   } 
   
-  else if (tunedFreq !== null) {
-    doc = { key: `faint-${tunedFreq}`, body: "FAINT CARRIER. NOTHING READABLE.", signal: true };
+  else if (tunedBase !== null) {
+    doc = { key: `faint-${tunedBase}`, body: "FAINT CARRIER. NOTHING READABLE.", signal: true };
   } else {
     doc = { key: "search", body: "", instant: true };
   }
@@ -142,10 +208,16 @@ export default function App() {
   const lcd = useLCD(doc, strength);
 
   function digit(d: string) {
-    if (!on) return;
+    if (!on || lockout || endPhase) return;
     setView("live");
     setNotice("");
     setEntry((e) => (e + d).slice(0, 4));
+  }
+
+  function revealHint(){
+    if(hintLevel >= 3 || solved)return;
+    setHintLevel((h) => h + 1);
+    setHintsUsed((h) => h + 1);
   }
 
   function letter(c: string) {
@@ -179,7 +251,14 @@ export default function App() {
 
     setNotice("");
     setChannel(n);
-    setOffset(randomOffset());
+    const b = randomBias();
+    setBias(b);
+    const now = performance.now();
+    setClock(now);
+    setDrift0(now);
+    setPhase(Math.random() * Math.PI * 2);
+    setHeld(null);
+    setOffset(randomOffset() - b);
     setRetuning(true);
 
     window.clearTimeout(retuneTimer.current);
@@ -194,7 +273,19 @@ export default function App() {
     }
 
     if (ans.trim().toUpperCase() !== transmission.keyword) {
-      setError("INCORRECT.");
+      if(strength < MIN_VERIFY){
+        setError("SIGNAL TOO WEAK");
+        return;
+      } 
+      setStrikes((s) => s + 1);
+      setLockout(true);
+      setChannel(null);
+      setOffset(0);
+      setBias(0);
+      setAns("");
+      setError("");
+      window.clearTimeout(lockTimer.current);
+      lockTimer.current = window.setTimeout(() => setLockout(false), LOCKOUT_MS);
       return;
     }
     
@@ -210,6 +301,18 @@ export default function App() {
     setChannel(null);
     setEntry("");
     setOffset(0);
+    setBias(0);
+    setHeld(null);
+    setLockout(false);
+    setStrikes(0);
+    setHintLevel(0);
+    setHintsUsed(0);
+    setEndPhase(null);
+    setStartedAt(null);
+    setPlayMs(0);
+    setView("live");
+    setRefOpen(false);
+    setPower("off");
     lcd.reset();
   }
 
@@ -221,10 +324,13 @@ export default function App() {
     setSolved(false);
     setChannel(null);
     setOffset(0);
+    setHintLevel(0);
   }
 
   function ok() {
-    if (!on) return;
+    if (!on || lockout) return;
+    if (endPhase === "card") return restart();
+    if(endPhase)return;
     if (entry) tune();
     else if (solved) next();
     else submit();
@@ -233,9 +339,14 @@ export default function App() {
   function togglePower() {
     window.clearTimeout(warmTimer.current);
     if (power === "off") {
+      if (endPhase) return;
+      if(startedAt === null)setStartedAt(Date.now());
       setPower("warming");
       warmTimer.current = window.setTimeout(() => setPower("on"), WARMUP_MS);
     } else {
+      if(finale && (endPhase === null || endPhase === "wait" || endPhase === "replay")){
+        setEndPhase("off");
+      }
       setPower("off");
       setRefOpen(false);
     }
@@ -253,6 +364,53 @@ export default function App() {
     const id = window.setInterval(() => setSeed((s) => s + 1), 300);
     return () => window.clearInterval(id);
   }, [on]);
+
+  useEffect(() => {
+    setHeld(tunedBase);
+  }, [tunedBase]);
+
+  useEffect(() => {
+    if(!on || channel === null || retuning || transmission.drift === 0)return;
+    const id = window.setInterval(() => setClock(performance.now()), 33);
+    return () => window.clearInterval(id);
+  }, [on, channel, retuning, transmission.drift]);
+
+  useEffect(() => {
+    if(!finale || !lcd.done || endPhase !== null)return;
+    setEndPhase("wait");
+    if(startedAt !== null)setPlayMs(Date.now() - startedAt);
+  }, [finale, lcd.done, endPhase, startedAt]);
+
+  useEffect(() => {
+    if(endPhase !== "wait")return;
+    const id = window.setTimeout(() => {
+      setView("live");
+      setEndPhase("replay");
+      setChannel(417);
+      setOffset(0);
+      setBias(0);
+      setHeld(null);
+      setRetuning(true);
+      window.clearTimeout(retuneTimer.current);
+      retuneTimer.current= window.setTimeout(() => setRetuning(false), RETUNE_MS);
+    }, WAIT_MS);
+    return () => window.clearTimeout(id);
+  }, [endPhase]);
+
+  useEffect(() => {
+    if(endPhase !== "replay" || retuning || !lcd.done)return;
+    const id = window.setTimeout(() => setEndPhase("card"), 3000);
+    return () => window.clearTimeout(id);
+  }, [endPhase, retuning, lcd.done]);
+
+  useEffect(() => {
+    if(endPhase !== "off")return;
+    const onKey = (e:KeyboardEvent) => {
+      if(e.key === "Enter")restart();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  })
 
   useEffect(() => {
     if (!on) return;
@@ -282,7 +440,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const frameSrc = power === "off" ? FRAMES.off : power === "warming" ? FRAMES.warm : FRAMES.lit[lit];
+  const frameSrc = power === "off" ? FRAMES.off : power === "warming" ? FRAMES.warm : FRAMES.lit[litShown];
   const dcx = DIAL_CENTER.x - BOX.dial.x;
   const dcy = DIAL_CENTER.y - BOX.dial.y;
 
@@ -341,7 +499,7 @@ export default function App() {
               shapeRendering="crispEdges"
               style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none" }}
             >
-              <g transform={`rotate(${needle} ${HUB.x} ${HUB.y})`}>
+              <g transform={`rotate(${finale? 0:needle} ${HUB.x} ${HUB.y})`}>
                 <line x1={HUB.x} y1={HUB.y} x2={HUB.x} y2={HUB.y - 38} stroke="#0b2a12" strokeWidth={2} />
               </g>
               <text
@@ -357,7 +515,7 @@ export default function App() {
             </svg>
           )}
 
-          <Scope box={BOX.scope} strength={strength} on={on} live={view === "live"} />
+          <Scope box={BOX.scope} strength={finale? 100: strength} on={on} live={view === "live" && !lockout} />
 
           <Rotary
             box={BOX.dial}
@@ -391,7 +549,7 @@ export default function App() {
             label="Scroll display"
             disabled={!on}
           >
-            {(deg) =>
+            {() =>
               on ? (
                 <img
                   src={SPRITES.knob}
@@ -481,7 +639,49 @@ export default function App() {
             ))}
           </div>
 
-          {on && refOpen && <RefPanel />}
+          {on && refOpen && (
+            <RefPanel hints={shownHints} canReveal={hintLevel < 3 && !solved} onReveal={revealHint} />
+          )}
+
+          {(endPhase === "card" || endPhase === "off") && (
+            <div
+              style = {{
+                position: "absolute",
+                inset: 0,
+                background: "#000",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center", 
+                justifyContent: "center",
+                gap: 20,
+                color: "#8ee6a0",
+                opacity: 0,
+                animation: `endFade 2.5s ease ${endPhase === "off" ? "1.2s" : "0s"} forwards`,
+              }}
+              >
+                <div style = {{fontSize: 16}}>
+                  {endPhase === "card" ? "THE LAST BROADCAST" : "SIGNAL LOST."}
+                </div>
+                <div style = {{fontSize: 8, color: "#456c4b"}}>
+                  {endPhase === "card" ? `TUNED IN ${mmss(playMs)}. WRONG ANSWERS: ${strikes}. HINTS: ${hintsUsed}.`: "SOMEWHERE, A VOICE IS STILL CALLING."}
+                </div>
+
+                <button
+                  onClick={restart}
+                  style={{
+                    background: "none",
+                    border: "1px solid #456c4b",
+                    color: "#8ee6a0",
+                    fontFamily: '"Press Start 2P", monospace',
+                    fontSize: 8,
+                    padding: "6px, 100px",
+                    cursor: "pointer",
+                  }}
+                >
+                  [ENT] {endPhase === "card" ? "PLAY AGAIN" : "TRY AGAIN"}
+                </button>
+              </div>
+           )}
         </div>
       </div>
     </div>

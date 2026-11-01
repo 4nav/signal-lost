@@ -1,6 +1,8 @@
 export const LOCK_WINDOW = 20;
 export const RANGE = 120;
 export const SPAN = 400;
+export const LOCK_RELEASE = 28;
+const DRIFT_SPEED = 0.6;
 
 export function getSignalStrength(frequency: number, target: number): number{
     const diff = Math.abs(frequency - target);
@@ -27,4 +29,10 @@ export function litCount(distance: number, locked: boolean): number{
     return (1 + Math.floor(t * 3.999));
 }
 
+export function driftOffset(amp: number, seconds: number, phase: number): number{
+    if(amp === 0)return 0;
+    const t = seconds * DRIFT_SPEED;
+    const w = 0.75 * Math.sin((t * 2 * Math.PI) / 9 + phase) + 0.25 * Math.sin((t * 2 * Math.PI) / 4.3 + phase * 1.7);
+    return w * amp;
+}
 
