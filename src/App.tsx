@@ -10,6 +10,9 @@ import Rotary from "./components/rotary";
 import {Scope} from "./components/scope";
 import RefPanel from "./components/RefPanel";
 import { hints } from "./data/hints";
+import Tour from "./components/Tour";
+import { TOUR } from "./radio/tour";
+import Intro from "./components/Intro";
 
 const RETUNE_MS = 1500;
 const WARMUP_MS = 800;
@@ -81,13 +84,13 @@ export default function App() {
   const [strikes, setStrikes] = useState(0);
   const lockTimer = useRef<number | undefined>(undefined);
 
-    const [clock, setClock] = useState(0);
-    const [drift0, setDrift0] = useState(0);
-    const [phase, setPhase] = useState(0);
-    const [held, setHeld] = useState<number | null>(null);
+  const [clock, setClock] = useState(0);
+  const [drift0, setDrift0] = useState(0);
+  const [phase, setPhase] = useState(0);
+  const [held, setHeld] = useState<number | null>(null);
 
-    const [hintLevel, setHintLevel] = useState(0);
-    const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintLevel, setHintLevel] = useState(0);
+  const [hintsUsed, setHintsUsed] = useState(0);
 
   const retuneTimer = useRef<number | undefined>(undefined);
   const warmTimer = useRef<number | undefined>(undefined);
@@ -95,6 +98,8 @@ export default function App() {
   const [endPhase, setEndPhase] = useState<null | "wait" | "replay" | "card" | "off">(null);
   const [startedAt,setStartedAt] = useState<number | null>(null);
   const [playMs, setPlayMs] = useState(0);
+  const [tour, setTour] = useState<number | null>(null);
+  const [intro, setIntro] = useState(true);
 
   const on = power === "on";
   const transmission = transmissions[curIdx];
@@ -313,6 +318,7 @@ export default function App() {
     setView("live");
     setRefOpen(false);
     setPower("off");
+    setTour(null);
     lcd.reset();
   }
 
@@ -334,6 +340,21 @@ export default function App() {
     if (entry) tune();
     else if (solved) next();
     else submit();
+  }
+
+  function endTour() {
+    setTour(null);
+    try{
+      localStorage.setItem("sl-tour", "1");
+    } catch{
+
+    }
+  }
+
+  function nextTour(){
+    if(tour === null)return;
+    if(tour >= TOUR.length - 1)endTour();
+    else setTour(tour + 1);
   }
 
   function togglePower() {
@@ -410,12 +431,36 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  })
+  });
+
+  useEffect(() => {
+    if(power !== "on")return;
+    try{
+      if(localStorage.getItem("sl-tour") === "1")return;
+    } catch{
+
+    }
+    setTour(0);
+  }, [power]);
 
   useEffect(() => {
     if (!on) return;
+
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if(tour !== null){
+        if(e.key === "Enter" || e.key === "ArrowRight"){
+          e.preventDefault();
+          nextTour();
+        }
+        else if(e.key === "Escape"){
+          e.preventDefault();
+          endTour();
+        }
+        return;
+      }
+
       if (e.key === "ArrowUp") {
         e.preventDefault();
         lcd.scrollBy(-1);
@@ -436,6 +481,7 @@ export default function App() {
       else if (e.key === "Enter") ok();
       else if (e.key === "Escape") clear();
     }
+
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -446,6 +492,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {intro && <Intro onDone={() => setIntro(false)} />}
       <div style={{ position: "relative", width: FRAME.w * scale, height: FRAME.h * scale }}>
         <div
           style={{
@@ -640,7 +687,7 @@ export default function App() {
           </div>
 
           {on && refOpen && (
-            <RefPanel hints={shownHints} canReveal={hintLevel < 3 && !solved} onReveal={revealHint} />
+            <RefPanel hints={shownHints} canReveal={hintLevel < 3 && !solved} onReveal={revealHint} onTour={() => {setRefOpen(false);setTour(0);}}/>
           )}
 
           {(endPhase === "card" || endPhase === "off") && (
@@ -681,6 +728,9 @@ export default function App() {
                   [ENT] {endPhase === "card" ? "PLAY AGAIN" : "TRY AGAIN"}
                 </button>
               </div>
+           )}
+           {on && tour !== null && (
+            <Tour step={tour} onNext={nextTour} onSkip={endTour}/>
            )}
         </div>
       </div>

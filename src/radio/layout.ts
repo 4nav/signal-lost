@@ -3,7 +3,7 @@ export type Box = {x: number, y: number, w: number, h: number};
 export const FRAME = {w: 1024, h: 640};
 
 export const BOX = {
-    lcd: { x: 352, y: 131, w: 320, h: 68 },
+  lcd: { x: 352, y: 131, w: 320, h: 68 },
   meter: { x: 565, y: 268, w: 129, h: 83 },
   dial: { x: 320, y: 250, w: 107, h: 117 },
   knob: { x: 381, y: 457, w: 110, h: 110 },
@@ -13,6 +13,7 @@ export const BOX = {
   red: { x: 296, y: 455, w: 52, h: 53 },
   power: { x: 477, y: 260, w: 43, h: 90 },
   toggle: { x: 302, y: 409, w: 32, h: 38 },
+  lights: { x: 659, y: 406, w: 110, h: 32 },
 } satisfies Record<string, Box>;
 
 export const HUB = {x: 630, y: 316};

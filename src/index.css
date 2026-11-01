@@ -133,3 +133,5 @@ code {
 }
 
 @keyframes endFade {from {opacity: 0;} to {opacity: 1;}}
+@keyframes tourPulse {from { opacity: 0.3;} to {opacity: 1;}}
+@keyframes introBlink {0%, 100% {opacity: 1;} 50% {opacity: 0.25;}}

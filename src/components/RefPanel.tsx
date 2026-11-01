@@ -8,6 +8,7 @@ type Props = {
     hints: string[];
     canReveal: boolean;
     onReveal: () => void;
+    onTour: () => void;
 };
 
 const noFocus = (e: ReactMouseEvent) => e.preventDefault();
@@ -24,7 +25,7 @@ const tabBtn = (active: boolean): CSSProperties => ({
 });
 
 
-export default function refPanel({ hints, canReveal, onReveal }: Props) {
+export default function refPanel({ hints, canReveal, onReveal, onTour }: Props) {
     const [tab, setTab] = useState<"morse" | "hint">("morse");
     const label = hints.length === 0 ? "GET A HINT" : hints.length === 1? "BIGGER HINT": "SHOW CHANNEL";
 
@@ -69,6 +70,10 @@ export default function refPanel({ hints, canReveal, onReveal }: Props) {
                             {label}
                         </button>
                     )}
+
+                    <button onMouseDown={noFocus} onClick={onTour} style={{ ...tabBtn(false), width: "100%", flex: "none", marginTop: 8 }}>
+                        REPLAY TOUR
+                    </button>
                 </div>
             )}
         </div>
