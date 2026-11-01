@@ -1,32 +1,15 @@
-# React + TypeScript + Vite
+# SIGNAL LOST 
+A retro radio puzzle game set in the 80s. Hidden in the frequencies are clues you'll need to advance the storyline. Tune the radio, search for signals, and piece together fragmented transmissions to uncover what happened. Pay attention to the details. Some messages hide more than they reveal.
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+# FEATURES
+- Retro, Pixel Art Interface 
+- Frequency tuning and signal detection
+- Interactive puzzles involving codes and decoding
+- Hidden clues embedded in transmissions
+- A narrative uncovered through exploration
 
-Currently, two official plugins are available:
+# BUILT WITH
+- React
+- Vite
+- Typescript
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
